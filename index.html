@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GameZone 🎮</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --panel: #12121a;
+      --border: #1e1e2e;
+      --neon: #00ffcc;
+      --neon2: #ff00aa;
+      --neon3: #ffcc00;
+      --text: #e0e0ff;
+      --dim: #555577;
+      --snake: #00ffcc;
+      --food: #ff00aa;
+      --grid: #0f0f1a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.07) 2px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    header {
+      width: 100%;
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(1.2rem, 4vw, 2.2rem);
+      color: var(--neon);
+      text-shadow: 0 0 20px var(--neon), 0 0 40px var(--neon);
+      letter-spacing: 4px;
+    }
+    header p {
+      margin-top: 0.5rem;
+      color: var(--dim);
+      font-size: 1rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .main {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2rem;
+      padding: 2rem 1rem;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    /* GAME PANEL */
+    .game-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 2rem;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.6rem;
+    }
+    .stat { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+    .stat-label { color: var(--dim); font-size: 0.45rem; letter-spacing: 2px; }
+    .stat-value { color: var(--neon3); }
+
+    #gameCanvas {
+      border: 2px solid var(--neon);
+      box-shadow: 0 0 30px rgba(0,255,204,0.3), inset 0 0 30px rgba(0,255,204,0.03);
+      background: var(--grid);
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      padding: 0.7rem 1.4rem;
+      border: 2px solid var(--neon);
+      background: transparent;
+      color: var(--neon);
+      cursor: pointer;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    button:hover {
+      background: var(--neon);
+      color: var(--bg);
+      box-shadow: 0 0 20px var(--neon);
+    }
+    button.danger {
+      border-color: var(--neon2);
+      color: var(--neon2);
+    }
+    button.danger:hover {
+      background: var(--neon2);
+      color: var(--bg);
+      box-shadow: 0 0 20px var(--neon2);
+    }
+
+    .directions {
+      display: grid;
+      grid-template-columns: repeat(3, 44px);
+      grid-template-rows: repeat(2, 44px);
+      gap: 4px;
+      margin-top: 0.5rem;
+    }
+    .d-btn {
+      width: 44px; height: 44px;
+      font-size: 1.2rem;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+    }
+    .d-up { grid-column: 2; grid-row: 1; }
+    .d-left { grid-column: 1; grid-row: 2; }
+    .d-down { grid-column: 2; grid-row: 2; }
+    .d-right { grid-column: 3; grid-row: 2; }
+
+    /* SIDE PANEL */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      min-width: 260px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 1.2rem;
+    }
+    .card-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      color: var(--neon2);
+      letter-spacing: 3px;
+      margin-bottom: 1rem;
+      text-shadow: 0 0 10px var(--neon2);
+    }
+
+    /* Score submit */
+    .name-input {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--dim);
+      color: var(--text);
+      padding: 0.5rem 0.8rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    input[type="text"]:focus { border-color: var(--neon); }
+
+    /* Leaderboard */
+    .lb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .lb-rank { color: var(--dim); width: 24px; }
+    .lb-rank.top { color: var(--neon3); }
+    .lb-name { flex: 1; padding: 0 0.5rem; }
+    .lb-score { color: var(--neon); font-family: 'Press Start 2P', monospace; font-size: 0.55rem; }
+    .lb-empty { color: var(--dim); font-size: 0.9rem; text-align: center; padding: 1rem; }
+
+    /* Overlay */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10,10,15,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      z-index: 10;
+    }
+    .overlay h2 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.8rem, 3vw, 1.4rem);
+      color: var(--neon2);
+      text-shadow: 0 0 20px var(--neon2);
+      text-align: center;
+    }
+    .overlay p {
+      color: var(--dim);
+      font-size: 0.9rem;
+      letter-spacing: 2px;
+    }
+    .canvas-wrap { position: relative; }
+
+    .speed-select {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+    select {
+      background: var(--bg);
+      border: 1px solid var(--dim);
+      color: var(--text);
+      padding: 0.3rem 0.6rem;
+      font-family: 'Rajdhani', sans-serif;
+      cursor: pointer;
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 1rem;
+      color: var(--dim);
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>GAMEZONE</h1>
+  <p>Snake &bull; React + FastAPI Edition</p>
+</header>
+
+<div class="main">
+  <div class="game-panel">
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-label">SCORE</span><span class="stat-value" id="score">0</span></div>
+      <div class="stat"><span class="stat-label">HIGH</span><span class="stat-value" id="highscore">0</span></div>
+      <div class="stat"><span class="stat-label">LEVEL</span><span class="stat-value" id="level">1</span></div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="gameCanvas" width="400" height="400"></canvas>
+      <div class="overlay" id="overlay">
+        <h2>SNAKE</h2>
+        <p>USE ARROW KEYS OR BUTTONS</p>
+        <button onclick="startGame()">▶ START GAME</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="speed-select">
+        <label>SPEED:</label>
+        <select id="speedSelect">
+          <option value="200">SLOW</option>
+          <option value="130" selected>NORMAL</option>
+          <option value="80">FAST</option>
+          <option value="50">INSANE</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="directions">
+      <button class="d-btn d-up" onclick="setDir(0,-1)">▲</button>
+      <button class="d-btn d-left" onclick="setDir(-1,0)">◀</button>
+      <button class="d-btn d-down" onclick="setDir(0,1)">▼</button>
+      <button class="d-btn d-right" onclick="setDir(1,0)">▶</button>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <div class="card">
+      <div class="card-title">// SAVE SCORE</div>
+      <p style="font-size:0.9rem;color:var(--dim)">Enter your name to submit score to leaderboard.</p>
+      <div class="name-input">
+        <input type="text" id="playerName" placeholder="YOUR NAME" maxlength="12"/>
+        <button onclick="submitScore()">SAVE</button>
+      </div>
+      <p id="saveMsg" style="font-size:0.85rem;margin-top:0.5rem;color:var(--neon);display:none"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">// LEADERBOARD</div>
+      <div id="leaderboard"><p class="lb-empty">Loading...</p></div>
+      <button style="margin-top:1rem;width:100%;font-size:0.45rem" onclick="loadLeaderboard()">↺ REFRESH</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">// HOW TO PLAY</div>
+      <ul style="font-size:0.9rem;line-height:2;color:var(--dim);padding-left:1rem;">
+        <li>Arrow keys or buttons to move</li>
+        <li>Eat 🍎 food to grow</li>
+        <li>Don't hit walls or yourself</li>
+        <li>Score increases per food eaten</li>
+        <li>Level up every 5 food items</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<footer>GAMEZONE &copy; 2024 &bull; REACT + FASTAPI &bull; AWS READY</footer>
+
+<script>
+const API = "http://localhost:8000"; // Change to your AWS backend URL
+const CELL = 20;
+const COLS = 20;
+const ROWS = 20;
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let snake, dir, food, score, highScore, level, running, loop, pendingDir;
+
+highScore = parseInt(localStorage.getItem('hz_high') || '0');
+document.getElementById('highscore').textContent = highScore;
+
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir = {x:1,y:0};
+  pendingDir = null;
+  score = 0;
+  level = 1;
+  running = true;
+  placeFood();
+  updateStats();
+  clearInterval(loop);
+  const speed = parseInt(document.getElementById('speedSelect').value);
+  loop = setInterval(tick, speed);
+}
+
+function placeFood() {
+  let pos;
+  do {
+    pos = {x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS)};
+  } while (snake.some(s => s.x===pos.x && s.y===pos.y));
+  food = pos;
+}
+
+function setDir(x, y) {
+  if ((x !== 0 && dir.x === 0) || (y !== 0 && dir.y === 0)) {
+    pendingDir = {x, y};
+  }
+}
+
+function tick() {
+  if (!running) return;
+  if (pendingDir) { dir = pendingDir; pendingDir = null; }
+
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS ||
+      snake.some(s => s.x===head.x && s.y===head.y)) {
+    gameOver(); return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score += 10 * level;
+    if (score > highScore) { highScore = score; localStorage.setItem('hz_high', highScore); }
+    if (snake.length % 5 === 0) level++;
+    placeFood();
+    clearInterval(loop);
+    const speed = Math.max(50, parseInt(document.getElementById('speedSelect').value) - (level-1)*10);
+    loop = setInterval(tick, speed);
+  } else {
+    snake.pop();
+  }
+  updateStats();
+  draw();
+}
+
+function draw() {
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(30,30,50,0.8)';
+  ctx.lineWidth = 0.5;
+  for (let i=0;i<=COLS;i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,canvas.height); ctx.stroke();
+  }
+  for (let j=0;j<=ROWS;j++) {
+    ctx.beginPath(); ctx.moveTo(0,j*CELL); ctx.lineTo(canvas.width,j*CELL); ctx.stroke();
+  }
+
+  // Food glow
+  const fp = food;
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = '#ff00aa';
+  ctx.fillStyle = '#ff00aa';
+  ctx.fillRect(fp.x*CELL+2, fp.y*CELL+2, CELL-4, CELL-4);
+  ctx.shadowBlur = 0;
+
+  // Snake
+  snake.forEach((seg, i) => {
+    const t = i / snake.length;
+    ctx.shadowBlur = i === 0 ? 15 : 0;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillStyle = i === 0 ? '#00ffcc' : `rgba(0,${Math.floor(200 - t*100)},${Math.floor(180-t*80)},${1-t*0.3})`;
+    ctx.fillRect(seg.x*CELL+1, seg.y*CELL+1, CELL-2, CELL-2);
+
+    if (i === 0) {
+      ctx.fillStyle = '#0a0a0f';
+      const ew = 3, eh = 3;
+      if (dir.x === 1)  { ctx.fillRect(seg.x*CELL+CELL-6, seg.y*CELL+3, ew, eh); ctx.fillRect(seg.x*CELL+CELL-6, seg.y*CELL+CELL-6, ew, eh); }
+      if (dir.x === -1) { ctx.fillRect(seg.x*CELL+3, seg.y*CELL+3, ew, eh); ctx.fillRect(seg.x*CELL+3, seg.y*CELL+CELL-6, ew, eh); }
+      if (dir.y === 1)  { ctx.fillRect(seg.x*CELL+3, seg.y*CELL+CELL-6, ew, eh); ctx.fillRect(seg.x*CELL+CELL-6, seg.y*CELL+CELL-6, ew, eh); }
+      if (dir.y === -1) { ctx.fillRect(seg.x*CELL+3, seg.y*CELL+3, ew, eh); ctx.fillRect(seg.x*CELL+CELL-6, seg.y*CELL+3, ew, eh); }
+    }
+  });
+  ctx.shadowBlur = 0;
+}
+
+function updateStats() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('highscore').textContent = highScore;
+  document.getElementById('level').textContent = level;
+}
+
+function gameOver() {
+  running = false;
+  clearInterval(loop);
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    <h2>GAME OVER</h2>
+    <p style="color:var(--neon3);font-family:'Press Start 2P',monospace;font-size:0.7rem">SCORE: ${score}</p>
+    <p style="color:var(--dim)">ENTER NAME BELOW TO SAVE</p>
+    <button onclick="startGame()">▶ PLAY AGAIN</button>
+  `;
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  const map = {ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+  if (map[e.key]) { e.preventDefault(); const [x,y]=map[e.key]; setDir(x,y); }
+});
+
+// API calls
+async function submitScore() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) return;
+  const msg = document.getElementById('saveMsg');
+  try {
+    const res = await fetch(`${API}/leaderboard`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, score, game:'snake'})
+    });
+    if (res.ok) {
+      msg.textContent = '✓ Score saved!'; msg.style.display='block';
+      loadLeaderboard();
+      setTimeout(()=>msg.style.display='none', 3000);
+    }
+  } catch {
+    msg.textContent = '⚠ API not connected. Start backend first.';
+    msg.style.color = 'var(--neon2)';
+    msg.style.display='block';
+  }
+}
+
+async function loadLeaderboard() {
+  const lb = document.getElementById('leaderboard');
+  try {
+    const res = await fetch(`${API}/leaderboard?game=snake`);
+    const data = await res.json();
+    if (!data.length) { lb.innerHTML = '<p class="lb-empty">No scores yet!</p>'; return; }
+    lb.innerHTML = data.map((e,i) => `
+      <div class="lb-row">
+        <span class="lb-rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</span>
+        <span class="lb-name">${e.name}</span>
+        <span class="lb-score">${e.score}</span>
+      </div>`).join('');
+  } catch {
+    lb.innerHTML = '<p class="lb-empty">Backend offline</p>';
+  }
+}
+
+loadLeaderboard();
+</script>
+</body>
+</html>
